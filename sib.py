@@ -122,9 +122,6 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, d
     free_energy = []
     split_point = []
     # Intermediate results
-    split = 0
-    left = beta
-    right = np.inf
     np_vc = []
     new_p_cn_trans = []
     
@@ -139,7 +136,7 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, d
         child[prt] = (i1, i2)
         is_updated[prt] = True
 
-    def diverge_detect():
+    def diverge_detect(split, beta, left, right):
         # diverge detection
         js_distance = [jsd(np_vc[k], np_vc[k + 1]) for k in range(0, len(np_vc) - 1, 2)]
         hit = np.max(js_distance) > splitDist
@@ -173,8 +170,8 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, d
             beta = (left + right) / 2.0
         else:
             left = beta
-            beta = np.min(beta * 2.0, (left + right) / 2.0)
-        return hit
+            beta = np.min([beta * 2.0, (left + right) / 2.0])
+        return hit, split, beta, left, right
 
     # root initialization
     init_cn, init_vc, fe, iterations = converge(np.array([[1.0] * len(nouns)]), beta, convergeDist, p_n, p_vn, p_vn_co_occur)
@@ -186,6 +183,9 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, d
     log.write('root completed.' + '\n')
     log.write("------------------------" + '\n')
 
+    left = beta
+    right = np.inf
+    split = 0
     trial_count = 1
     while split < split_threshold:
         log.write("trial %d with beta %f" % (trial_count, beta) + '\n')
@@ -199,7 +199,7 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, d
         free_energy.append((beta, fe))
 
         # diverge detection
-        diverged = diverge_detect()
+        diverged, split, beta, left, right = diverge_detect(split, beta, left, right)
         if diverged or trial_count >= TRIAL:
             trial_count = 0
         trial_count = trial_count + 1
