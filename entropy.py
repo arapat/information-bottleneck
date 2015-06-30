@@ -29,7 +29,7 @@ def result_entropy(p_n, p_vn, p_vn_co_occur, init_beta, K, trials = 10):
         p_entropy.append(compute_entropy(result))
         min_beta = min(min_beta, beta)
         loop = loop + 1
-        log.write("LOOP: %d" % loop + '\n')
+        log.info("LOOP: %d" % loop)
 
     return p_entropy, result, min_beta
   

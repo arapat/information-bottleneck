@@ -55,7 +55,7 @@ def evaluate(js_div, pc, beta):
     dists = pc * np.exp(-beta * js_div)
     return dists / dists.sum()
 
-def converge(p_cn_trans, beta, convergeDist, p_n, p_vn, p_vn_co_occur, log=False):
+def converge(p_cn_trans, beta, convergeDist, p_n, p_vn, p_vn_co_occur):
     def merge(tuples, array):
         result = []
         t = 0
@@ -155,9 +155,9 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, d
         # log
         if updated:
             split_point.append(beta)
-            log.write('===== beta %f updated =====' % (beta) + '\n')
+            log.info('===== beta %f updated =====' % (beta))
         elif hit:
-            log.write('beta = %f, left = %f, right = %f successed. Closer the gap.' % (beta, left, right) + '\n')
+            log.info('beta = %f, left = %f, right = %f successed. Closer the gap.' % (beta, left, right))
             
         # for next iteration
         if updated:
@@ -178,21 +178,20 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, d
     split_point.append(beta)
     # print 'initial (max) entropy', entropy(get_preference(distr, beta)[0])
 
-    log.write('root completed.' + '\n')
-    log.write("------------------------" + '\n')
+    log.info('root completed.')
 
     left = beta
     right = np.inf
     split = 0
     trial_count = 1
     while split < split_threshold:
-        log.write("trial %d with beta %f" % (trial_count, beta) + '\n')
+        log.info("trial %d with beta %f" % (trial_count, beta))
         
         # pertubate and converge
         adjusted_p_cn_trans = pertubate(p_cn_trans, is_leaf, alpha)
         timer = time()
         new_p_cn_trans, np_vc, fe, iterations = converge(adjusted_p_cn_trans, beta, convergeDist, p_n, p_vn, p_vn_co_occur)
-        log.write('Converge time %f seconds (%d iterations)\n' % (time() - timer, iterations))
+        log.info('Converge time %f seconds (%d iterations)' % (time() - timer, iterations))
 
         free_energy.append((beta, fe))
 
@@ -203,8 +202,6 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, d
         if diverged or trial_count >= TRIAL:
             trial_count = 0
         trial_count = trial_count + 1
-
-        log.write("------------------------" + '\n')
 
     free_energy.sort()
     return p_cn_trans, child, is_leaf, free_energy, split_point, beta
