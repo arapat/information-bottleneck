@@ -133,8 +133,8 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, d
     
     def append_prt(i1, i2, prt):
         is_leaf[prt] = False
+        p_cn_trans[prt] = np.zeros(len(nouns))
         child[prt] = (i1, i2)
-        is_updated[prt] = True
 
     def diverge_detect(split, beta, left, right):
         # diverge detection
@@ -154,7 +154,7 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, d
         # log
         if updated:
             split_point.append(beta)
-            log.write('===== beta %f distance between centroids %f =====' % (beta, diff) + '\n')
+            log.write('===== beta %f updated =====' % (beta) + '\n')
         elif hit:
             log.write('beta = %f, left = %f, right = %f successed. Closer the gap.' % (beta, left, right) + '\n')
             
@@ -162,16 +162,13 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, d
         if updated:
             left = beta
             right = np.inf
-            # TODO: How to decide alpha?
-            if alpha >= 1e-5:
-              alpha = alpha * 0.01
         elif hit:
             right = beta
             beta = (left + right) / 2.0
         else:
             left = beta
             beta = np.min([beta * 2.0, (left + right) / 2.0])
-        return hit, split, beta, left, right
+        return hit, updated, split, beta, left, right
 
     # root initialization
     init_cn, init_vc, fe, iterations = converge(np.array([[1.0] * len(nouns)]), beta, convergeDist, p_n, p_vn, p_vn_co_occur)
@@ -199,7 +196,9 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, d
         free_energy.append((beta, fe))
 
         # diverge detection
-        diverged, split, beta, left, right = diverge_detect(split, beta, left, right)
+        diverged, updated, split, beta, left, right = diverge_detect(split, beta, left, right)
+        if updated and alpha >= 1e-5:
+            alpha = alpha * 0.01
         if diverged or trial_count >= TRIAL:
             trial_count = 0
         trial_count = trial_count + 1
