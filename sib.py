@@ -143,7 +143,8 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, d
         updated = hit and left + 1.0 >= beta
         if updated:
             leaves = [i for i in range(len(is_leaf)) if is_leaf[i]]
-            for i, p1, p2 in zip(leaves, range(0, len(np_vc), 2), range(1, len(np_vc), 2)):
+            for k, i, p1, p2 in zip(range(len(js_distance)), leaves, \
+                    range(0, len(np_vc), 2), range(1, len(np_vc), 2)):
                 if js_distance[k] > splitDist:
                     i1, i2 = append(new_p_cn_trans[p1]), append(new_p_cn_trans[p2])
                     append_prt(i1, i2, i)

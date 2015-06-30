@@ -3,18 +3,11 @@ import urllib
 
 from operator import itemgetter
 
+import logging
 import numpy as np
 
-# AWS credentials
-ACCESS_KEY = "" # ACCESS_KEY
-SECRET_KEY = "" # SECRET_KEY
-ENCODED_SECRET_KEY = urllib.quote(SECRET_KEY, "")
-AWS_BUCKET_NAME = "" # AWS bucket name
-MOUNT_NAME = "s3"
-
-# logs
-log = sys.stderr
-# log = open("sib_multi.log", "w")
+# Logger
+log = logging.getLogger('')
 
 # Mount S3 to local
 dbutils.fs.unmount("/mnt/%s" % MOUNT_NAME)
