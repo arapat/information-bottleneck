@@ -113,7 +113,7 @@ def converge(p_cn_trans, beta, convergeDist, p_n, p_vn, p_vn_co_occur):
     return p_cn_trans, p_vc, free_energy, iterations
 
 
-def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, delta, convergeDist, splitDist, alpha):
+def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, convergeDist, splitDist, alpha):
     TRIAL = 2
     # To return
     p_cn_trans = []

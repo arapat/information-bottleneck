@@ -23,7 +23,7 @@ def result_entropy(p_n, p_vn, p_vn_co_occur, init_beta, K, trials = 10):
     loop = 0
     while loop < trials:
         p_cn_trans, child, is_leaf, free_energy, split_point, beta = distributional_clustering(p_n, p_vn, p_vn_co_occur, K, \
-            beta = init_beta, delta = 0.5, convergeDist = 0.001, splitDist = 0.05, alpha = 0.1)
+            beta = init_beta, convergeDist = 0.001, splitDist = 0.05, alpha = 0.1)
         for k, c in zip(range(len(nouns)), hard_clustering(p_cn_trans)):
             result[k] = result[k] + '(' + str(c) + ')'
         p_entropy.append(compute_entropy(result))
