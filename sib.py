@@ -1,40 +1,42 @@
 from time import time
 
 import numpy as np
+from numpy import multiply
 from numpy.random import uniform
 from scipy.stats import entropy
+from scipy.sparse import csr_matrix
 
 def jsd(p, q):
     m = (p + q) / 2.0
-    t1 = np.nan_to_num(p * np.log2(p / m)).sum()
-    t2 = np.nan_to_num(q * np.log2(q / m)).sum()
+    # TODO
+    # t1 = np.nan_to_num(multiply(p, np.log2(p / m))).sum()
+    # t2 = np.nan_to_num(multiply(q, np.log2(q / m))).sum()
+    t1 = np.nan_to_num(p.multiply(np.log2(p / m))).sum()
+    t2 = np.nan_to_num(q.multiply(np.log2(q / m))).sum()
     return (t1 + t2) / 2.0
 
-def kld(p, q):
-    # TODO: NOT used.
-    # TODO: bug
-    # in case when p[k] > 0 but q[k] = 0
-    result = np.sum([a * np.log2(a / b) for a, b in zip(p, q) if a > 1e-30])
-    return result
-
 def compute_jsd(b, p_vc):
-    return np.array([jsd(b, p_vc[c]) for c in range(len(p_vc))])
+    return np.array([jsd(b, p_vc[c, :]) for c in range(p_vc.shape[0])])
 
 def get_free_energy(p_cn_trans, p_vc, p_c, js_div, beta):
     """
       Free energy: F = <D> - H/\beta, specifically
       sum_n( p(n) sum_c (p(c|n)JSD(n, c)) ) + sum_{n, c} p(c|n) log( p(n|c) ) / \beta
     """
-    N, C = len(p_n), len(p_c)
     def compute_p_nc():
-        return p_cn_trans * np.hstack(p_n) / np.vstack(p_c)
+        p = p_cn_trans.multiply(p_n) / p_c.toarray()[0][None, :]
+        return csr_matrix(p)
   
     def get_entropy(p_nc):
         # return -np.sum(p_cn_trans * np.log2(p_nc))
-        return -(p_c * np.sum(p_nc * np.log2(p_nc), axis=1)).sum()
+        ent = np.log2(p_nc.toarray())
+        temp = np.sum(p_nc.multiply(ent), axis=1)
+        return -(p_c.multiply(temp)).sum()
         
     def get_distortion():
-        return js_div.map(lambda (a, values): p_n[a] * np.sum(p_cn_trans.T[a] * values)).sum()
+        return js_div.map(lambda (a, values): p_n[0, a] * \
+                p_cn_trans[:, a].multiply(values).sum()) \
+                     .sum()
     
     # TODO
     distortion = get_distortion()
@@ -48,26 +50,18 @@ def pertubate(p_cn_trans, is_leaf, alpha):
             eps = alpha * uniform(-0.5, 0.5, len(nouns))
             result.append(p_cn_trans[c] * (0.5 + eps))
             result.append(p_cn_trans[c] * (0.5 - eps))
-    return np.array(result)
+    return csr_matrix(result)
 
 
 def evaluate(js_div, pc, beta):
-    dists = pc * np.exp(-beta * js_div)
-    return dists / dists.sum()
+    dists = pc.multiply(np.exp(-beta * js_div))
+    return csr_matrix(dists) / dists.sum()
 
 def converge(p_cn_trans, beta, convergeDist, p_n, p_vn, p_vn_co_occur):
-    def merge(tuples, array):
-        result = []
-        t = 0
-        for k in range(0, len(array)):
-            if t < len(tuples) and tuples[t][0] == k:
-                result.append(tuples[t][1])
-                t = t + 1
-            else:
-                result.append(array[k])
-        return result
+    def outer(p1, p2):
+        p = np.outer(p1.toarray(), p2.toarray())
+        return csr_matrix(p)
 
-    K = p_cn_trans.shape[0]
     p_vc = None
     iterations = 0
     
@@ -77,35 +71,39 @@ def converge(p_cn_trans, beta, convergeDist, p_n, p_vn, p_vn_co_occur):
 
     while True:
         iterations = iterations + 1
-        p_cn = p_cn_trans.T
 
         # p(c)
-        pc = p_cn_trans.dot(p_n) # pn[n] * p_cn[n][c]
+        pc = p_cn_trans.dot(p_n.T) # pn[n] * p_cn[n][c]
 
         # p(v|c)
         # computed as: p_cn[n][c] * p_vn[n][v] * pn[n] / pc[c]
-        p_vc = p_vn_co_occur.map(lambda (a, b): np.outer(p_cn[a], b)) \
-                            .sum() / np.vstack(pc)
+        p_vc = p_vn_co_occur.map(lambda (a, b): outer(p_cn_trans[:, a], b[0, :])) \
+                            .sum() / pc.toarray()[0][:, None]
+        p_vc = csr_matrix(p_vc)
 
         # new p(c|n)
         # computed as: pc[c] * exp(-beta * jsd(b, p_vc[c]))
         if js_div:
             js_div.unpersist()
         js_div = p_vn.map(lambda (a, b): (a, compute_jsd(b, p_vc))).cache()
+        print js_div.take(1) # TODO
         new_p_cn = js_div.map(lambda (a, values): (a, evaluate(values, pc, beta))) \
                          .sortByKey() \
                          .collect()
-        new_p_cn = np.array(merge(new_p_cn, p_cn))
+        # TODO
+        # special case -> p_cn[n][k] = 0.0
 
         max_diff = 0.0
+        k = 0
         for n in range(len(nouns)):
-            if max_diff <= convergeDist:
-                diff = jsd(p_cn[n], new_p_cn[n])
+            if max_diff <= convergeDist and new_p_cn[k][0] == n:
+                diff = jsd(p_cn_trans[:, n], new_p_cn[k][1])
                 max_diff = max(diff, max_diff)
+                k = k + 1
         if max_diff <= convergeDist:
             break
 
-        p_cn_trans = new_p_cn.T
+        p_cn_trans = csr_matrix(new_p_cn.T)
     
     free_energy = get_free_energy(p_cn_trans, p_vc, pc, js_div, beta)
     js_div.unpersist()
@@ -172,8 +170,10 @@ def distributional_clustering(p_n, p_vn, p_vn_co_occur, split_threshold, beta, c
         return hit, updated, split, beta, left, right
 
     # root initialization
-    init_cn, init_vc, fe, iterations = converge(np.array([[1.0] * len(nouns)]), beta, convergeDist, p_n, p_vn, p_vn_co_occur)
-    append([1.0] * len(nouns))
+    init_p_cn_trans = csr_matrix(np.ones(len(nouns)))
+    init_cn, init_vc, fe, iterations = converge(init_p_cn_trans, beta, convergeDist, \
+            p_n, p_vn, p_vn_co_occur)
+    append(init_p_cn_trans)
     free_energy.append((beta, fe))
     split_point.append(beta)
     # print 'initial (max) entropy', entropy(get_preference(distr, beta)[0])
