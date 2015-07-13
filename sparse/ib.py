@@ -14,7 +14,9 @@ def simple_jsd(p, q):
   assert p.shape == q.shape
 
   m = (p + q) / 2.0
-  return 0.5 * np.sum(p * log2(p / m) + q * log2(q / m))
+  t1 = np.nan_to_num(p * log2(p / m))
+  t2 = np.nan_to_num(q * log2(q / m))
+  return 0.5 * (t1.sum() + t2.sum())
 
 
 def jsd(p, q):
@@ -27,6 +29,8 @@ def jsd(p, q):
   assert p.shape[0] == 1
   assert p.shape == q.shape
 
+  return simple_jsd(p.toarray()[0], q.toarray()[0])
+  """
   result = 0.0
   data1, indices1, indptr1 = p.data, p.indices, p.indptr
   data2, indices2, indptr2 = q.data, q.indices, q.indptr
@@ -54,6 +58,7 @@ def jsd(p, q):
       i1, i2 = i1 + 1, i2 + 1
   result = result + sum(data1[i1:]) + sum(data2[i2:])
   return result / 2.0
+  """
 
 
 def compute_jsd(v, centroids, valid):

@@ -32,13 +32,14 @@ def classify(traces):
   return result
 
 
-def split_entropy(p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur, trials = 10):
+def split_entropy(p_tx, beta, converge_dist, split_dist, alpha, \
+    p_x, p_yx, p_yx_co_occur, trials = 10):
   n = p_tx.shape[0]
 
   free_energy = []
   num_of_trials = []
   entropy = []
-  result = ['' for k in range(n)]
+  traces = ['' for k in range(n)]
   loop = 0
   while loop < trials:
     loop = loop + 1
@@ -47,11 +48,11 @@ def split_entropy(p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur, trials = 
     succeed, result = fixed_beta_split(p_tx, beta, converge_dist, split_dist, alpha, \
         p_x, p_yx, p_yx_co_occur)
     new_p_tx, fe, trial_count = result
-    for k, c in zip(range(len(n)), hard_clustering(new_p_tx)):
-      result[k] = result[k] + "(%d)" % c
+    for k, c in zip(range(n), hard_clustering(new_p_tx)):
+      traces[k] = traces[k] + "(%d)" % c
 
-    entropy.append(compute_entropy(result))
+    entropy.append(compute_entropy(traces))
     free_energy.append(fe)
     num_of_trials.append(trial_count)
-  return result, entropy, free_energy, num_of_trials
+  return traces, entropy, free_energy, num_of_trials
 
