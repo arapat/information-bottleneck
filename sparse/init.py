@@ -17,5 +17,5 @@ def get_norm_1d_csr(idx_val, size):
   data = np.array([val for idx, val in idx_val])
   indices = np.array([idx for idx, val in idx_val])
   indptr = np.array([0, len(idx_val)])
-  return csr_matrix((data, indices, indptr), shape=(1, size))
+  return csr_matrix((1.0 * data / data.sum(), indices, indptr), shape=(1, size))
  

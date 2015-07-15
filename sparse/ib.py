@@ -29,35 +29,19 @@ def jsd(p, q):
   assert p.shape[0] == 1
   assert p.shape == q.shape
 
-  return simple_jsd(p.toarray()[0], q.toarray()[0])
-  """
-  result = 0.0
-  data1, indices1, indptr1 = p.data, p.indices, p.indptr
-  data2, indices2, indptr2 = q.data, q.indices, q.indptr
-  i1, r1, i2, r2 = 0, 0, 0, 0
-  ptr1, ptr2 = 1, 1
+  _pq = np.intersect1d(p.nonzero()[1], q.nonzero()[1])
+  _p = p[0, _pq].data
+  _q = q[0, _pq].data
+  m = (_p + _q) / 2.0
+  plog2 = np.log2(_p / m)
+  qlog2 = np.log2(_q / m)
+  psum = p.sum() - _p.sum()
+  qsum = q.sum() - _q.sum()
+  result = 0.5 * (_p.dot(plog2) + _q.dot(qlog2) + psum + qsum)
+  return result
 
-  while i1 < data1.size and i2 < data2.size:
-    while i1 == indptr1[ptr1]:
-      r1 = r1 + 1
-      ptr1 = ptr1 + 1
-    while i2 == indptr2[ptr2]:
-      r2 = r2 + 1
-      ptr2 = ptr2 + 1
-    idx1 = (r1, indices1[i1])
-    idx2 = (r2, indices2[i2])
-    if idx1 < idx2:
-      result = result + data1[i1]
-      i1 = i1 + 1
-    elif idx1 > idx2:
-      result = result + data2[i2]
-      i2 = i2 + 1
-    else:
-      m = (data1[i1] + data2[i2]) / 2.0
-      result = result + data1[i1] * log2(data1[i1] / m) + data2[i2] * log2(data2[i2] / m)
-      i1, i2 = i1 + 1, i2 + 1
-  result = result + sum(data1[i1:]) + sum(data2[i2:])
-  return result / 2.0
+  """
+  return simple_jsd(p.toarray()[0], q.toarray()[0])
   """
 
 
