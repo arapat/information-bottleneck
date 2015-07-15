@@ -7,60 +7,24 @@ from numpy import sum
 from numpy.random import uniform
 from scipy.sparse import csr_matrix
 
-def simple_jsd(p, q):
-  assert type(p) is np.ndarray
-  assert type(q) is np.ndarray
-  assert len(p.shape) == 1
-  assert p.shape == q.shape
+def jsd(p, q, valid = True, is_vector = False):
+  """
+  p: a vector, or a matrix
+  q: a vector, or a matrix
+  valid: valid[k] = +inf if the data point is invalid, 1.0 otherwise
+  return the jsd between p and every vector in q
+  """
+  if valid == False:
+    return np.array([np.inf] * q.shape[0])
 
   m = (p + q) / 2.0
   t1 = np.nan_to_num(p * log2(p / m))
   t2 = np.nan_to_num(q * log2(q / m))
-  return 0.5 * (t1.sum() + t2.sum())
-
-
-def jsd(p, q):
-  """
-  p, q: csr_matrix, shape = (1, d)
-  return the JS divergence between p and q.
-  """
-  assert type(p) is csr_matrix
-  assert type(q) is csr_matrix
-  assert p.shape[0] == 1
-  assert p.shape == q.shape
-
-  _pq = np.intersect1d(p.nonzero()[1], q.nonzero()[1])
-  _p = p[0, _pq].data
-  _q = q[0, _pq].data
-  m = (_p + _q) / 2.0
-  plog2 = np.log2(_p / m)
-  qlog2 = np.log2(_q / m)
-  psum = p.sum() - _p.sum()
-  qsum = q.sum() - _q.sum()
-  result = 0.5 * (_p.dot(plog2) + _q.dot(qlog2) + psum + qsum)
-  return result
-
-  """
-  return simple_jsd(p.toarray()[0], q.toarray()[0])
-  """
-
-
-def compute_jsd(v, centroids, valid):
-  """
-  v: array-like csr_matrix
-  centroids: csr_matrix, a list of vectors
-  return the jsd between v and every centroid
-  """
-  c = centroids.shape[0]
-  if not valid:
-    return np.array([np.inf] * c)
-  return np.array([jsd(v, centroids[k, :]) for k in range(c)])
-
-
-def get_centroids_weights(p_tx, p_x):
-  assert type(p_tx) is np.ndarray
-  assert type(p_x) is np.ndarray
-  return p_tx.T.dot(p_x)
+  # p, q are both vectors
+  if is_vector:
+    return 0.5 * (t1.sum() + t2.sum())
+  # otherwise
+  return 0.5 * (t1.sum(axis=1) + t2.sum(axis=1))
 
 
 def get_free_energy(p_tx, p_t, p_x, js_div, beta):
@@ -132,25 +96,22 @@ def converge(p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur):
   while True:
     iterations = iterations + 1
     
-    p_t = get_centroids_weights(p_tx, p_x)
+    p_t = p_tx.T.dot(p_x)
 
     p_yt_co_occur = p_yx_co_occur.map(lambda (a, v): np.outer(p_tx[a, :], v.toarray())) \
                                  .sum()
-    p_yt = csr_matrix(norm(p_yt_co_occur))
+    p_yt = norm(p_yt_co_occur)
 
     # new p(t|x)
     if js_div:
       js_div.unpersist()
-    js_div = p_yx.map(lambda (a, v): (a, compute_jsd(v, p_yt, p_x[a] > 0.0))).cache()
+    js_div = p_yx.map(lambda (a, v): (a, jsd(v.toarray(), p_yt, p_x[a] > 0.0))).cache()
+
     new_p_tx = js_div.map(lambda (a, v): (a, get_membership(v, p_t, beta))) \
                      .sortByKey() \
                      .map(lambda p: p[1]).collect()
 
-    max_diff = 0.0
-    for k in range(p_tx.shape[0]):
-      if max_diff <= converge_dist:
-        diff = simple_jsd(p_tx[k, :], new_p_tx[k])
-        max_diff = max(diff, max_diff)
+    max_diff = np.max(jsd(p_tx, new_p_tx))
     if max_diff <= converge_dist:
       break
 
@@ -176,11 +137,7 @@ def fixed_beta_split(p_tx, beta, converge_dist, split_dist, alpha, p_x, p_yx, p_
         converge(adjusted_p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur)
     log.info("Converge time %f seconds (%d iterations)" % (time() - timer, iterations))
 
-    js_distance = 0.0
-    for k in range(0, p_yt.shape[0], 2):
-      if js_distance <= split_dist:
-        js_distance = jsd(p_yt[k, :], p_yt[k + 1, :])
-
+    js_distance = np.max(jsd(p_yt[::2], p_yt[1::2]))
     if js_distance > split_dist:
       return (True, (new_p_tx, free_energy, trial_count))
   return (False, None)
@@ -204,4 +161,26 @@ def search_beta(p_tx, init_beta, converge_dist, split_dist, alpha, p_x, p_yx, p_
     else:
       beta = beta * 2.0
   return right
+
+
+# Unused
+
+def _csr_jsd(p, q):
+  """
+  p, q: csr_matrix, shape = (1, d)
+  return the JS divergence between p and q.
+  """
+  _pq = np.intersect1d(p.nonzero()[1], q.nonzero()[1])
+  _p = p[0, _pq].data
+  _q = q[0, _pq].data
+  m = (_p + _q) / 2.0
+  plog2 = np.log2(_p / m)
+  qlog2 = np.log2(_q / m)
+  psum = p.sum() - _p.sum()
+  qsum = q.sum() - _q.sum()
+  result = 0.5 * (_p.dot(plog2) + _q.dot(qlog2) + psum + qsum)
+  return result
+  """
+  return simple_jsd(p.toarray()[0], q.toarray()[0])
+  """
 
