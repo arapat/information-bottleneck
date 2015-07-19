@@ -7,24 +7,8 @@ from numpy import sum
 from numpy.random import uniform
 from scipy.sparse import csr_matrix
 
-def jsd(p, q, valid = True, is_vector = False):
-  """
-  p: a vector, or a matrix
-  q: a vector, or a matrix
-  valid: valid[k] = +inf if the data point is invalid, 1.0 otherwise
-  return the jsd between p and every vector in q
-  """
-  if valid == False:
-    return np.array([np.inf] * q.shape[0])
-
-  m = (p + q) / 2.0
-  t1 = np.nan_to_num(p * log2(p / m))
-  t2 = np.nan_to_num(q * log2(q / m))
-  # p, q are both vectors
-  if is_vector:
-    return 0.5 * (t1.sum() + t2.sum())
-  # otherwise
-  return 0.5 * (t1.sum(axis=1) + t2.sum(axis=1))
+def distance(p, q, valid = True, is_vector = False):
+  return jsd(p, q, valid, is_vector)
 
 
 def get_free_energy(p_tx, p_t, p_x, js_div, beta):
@@ -105,13 +89,13 @@ def converge(p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur):
     # new p(t|x)
     if js_div:
       js_div.unpersist()
-    js_div = p_yx.map(lambda (a, v): (a, jsd(v.toarray(), p_yt, p_x[a] > 0.0))).cache()
+    js_div = p_yx.map(lambda (a, v): (a, distance(v.toarray(), p_yt, p_x[a] > 0.0))).cache()
 
     new_p_tx = js_div.map(lambda (a, v): (a, get_membership(v, p_t, beta))) \
                      .sortByKey() \
                      .map(lambda p: p[1]).collect()
 
-    max_diff = np.max(jsd(p_tx, new_p_tx))
+    max_diff = np.max(distance(p_tx, new_p_tx))
     if max_diff <= converge_dist:
       break
 
@@ -137,7 +121,7 @@ def fixed_beta_split(p_tx, beta, converge_dist, split_dist, alpha, p_x, p_yx, p_
         converge(adjusted_p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur)
     log.info("Converge time %f seconds (%d iterations)" % (time() - timer, iterations))
 
-    js_distance = np.max(jsd(p_yt[::2], p_yt[1::2]))
+    js_distance = np.max(distance(p_yt[::2], p_yt[1::2]))
     if js_distance > split_dist:
       return (True, (new_p_tx, free_energy, trial_count))
   return (False, None)
@@ -161,6 +145,28 @@ def search_beta(p_tx, init_beta, converge_dist, split_dist, alpha, p_x, p_yx, p_
     else:
       beta = beta * 2.0
   return right
+
+
+# Distance measurement
+
+def jsd(p, q, valid, is_vector):
+  """
+  p: a vector, or a matrix
+  q: a vector, or a matrix
+  valid: valid[k] = +inf if the data point is invalid, 1.0 otherwise
+  return the jsd between p and every vector in q
+  """
+  if valid == False:
+    return np.array([np.inf] * q.shape[0])
+
+  m = (p + q) / 2.0
+  t1 = np.nan_to_num(p * log2(p / m))
+  t2 = np.nan_to_num(q * log2(q / m))
+  # p, q are both vectors
+  if is_vector:
+    return 0.5 * (t1.sum() + t2.sum())
+  # otherwise
+  return 0.5 * (t1.sum(axis=1) + t2.sum(axis=1))
 
 
 # Unused
