@@ -15,6 +15,8 @@ def compute_entropy(p):
 
 
 def hard_clustering(p_tx):
+  if p_tx.sum() == 0.0:
+    return -1
   return np.argmax(p_tx, axis=1)
 
 
