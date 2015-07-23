@@ -7,8 +7,8 @@ from numpy import sum
 from numpy.random import uniform
 from scipy.sparse import csr_matrix
 
-def distance(p, q, valid = True, is_vector = False):
-  return jsd(p, q, valid, is_vector)
+def distance(p, q, is_vector = False):
+  return jsd(p, q, is_vector)
 
 
 def get_free_energy(p_tx, p_t, p_x, js_div, beta):
@@ -58,8 +58,6 @@ def get_membership(js_div, p_t, beta):
   p_t: array
   """
   p = p_t * np.exp(-beta * js_div)
-  if p.sum() == 0.0:
-    return p
   return p / p.sum()
 
 
@@ -89,7 +87,7 @@ def converge(p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur):
     # new p(t|x)
     if js_div:
       js_div.unpersist()
-    js_div = p_yx.map(lambda (a, v): (a, distance(v.toarray(), p_yt, p_x[a] > 0.0))).cache()
+    js_div = p_yx.map(lambda (a, v): (a, distance(v.toarray(), p_yt))).cache()
 
     new_p_tx = js_div.map(lambda (a, v): (a, get_membership(v, p_t, beta))) \
                      .sortByKey() \
@@ -149,16 +147,13 @@ def search_beta(p_tx, init_beta, converge_dist, split_dist, alpha, p_x, p_yx, p_
 
 # Distance measurement
 
-def jsd(p, q, valid, is_vector):
+def jsd(p, q, is_vector):
   """
   p: a vector, or a matrix
   q: a vector, or a matrix
   valid: valid[k] = +inf if the data point is invalid, 1.0 otherwise
   return the jsd between p and every vector in q
   """
-  if valid == False:
-    return np.array([np.inf] * q.shape[0])
-
   m = (p + q) / 2.0
   t1 = np.nan_to_num(p * log2(p / m))
   t2 = np.nan_to_num(q * log2(q / m))
