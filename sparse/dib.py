@@ -156,6 +156,8 @@ def jsd(p, q, valid, is_vector):
   valid: valid[k] = +inf if the data point is invalid, 1.0 otherwise
   return the jsd between p and every vector in q
   """
+  assert(type(p) is np.ndarray)
+  assert(type(q) is np.ndarray)
   if valid == False:
     return np.array([np.inf] * q.shape[0])
 
