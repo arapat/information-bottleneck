@@ -8,7 +8,7 @@ def hartigan_adjust(weight, vector, p_yt, c):
         if i == c:
             centroid = (p_yt[i][1] - vector) / (p_yt[i][0] - weight)
         else:
-            centroid = p_yt[i][1] - p_yt[i][0]
+            centroid = p_yt[i][1] / p_yt[i][0]
         n_dist = distance(centroid, vector, True, True)
         if n_dist < dist:
             dist = n_dist
@@ -69,5 +69,5 @@ def hartigan_twoCentroids(p_x, p_yx, numOfX):
     p_tx = np.zeros((numOfX, 2))
     for k in range(numOfX):
         p_tx[k][assignments[k]] = 1.0
-    return p_tx
+    return p_tx, assignments
 
