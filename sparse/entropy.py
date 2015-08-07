@@ -15,23 +15,7 @@ def compute_entropy(p):
 
 
 def hard_clustering(p_tx):
-  if p_tx.sum() == 0.0:
-    return -1
   return np.argmax(p_tx, axis=1)
-
-
-def classify(traces):
-  count = len(traces)
-  items = sorted(zip(traces, range(count)))
-  result = []
-  current, collection = items[0][0], [items[0][1]]
-  for trace, n in items[1:]:
-    if current != trace:
-      result.append(collection)
-      current, collection = trace, []
-    collection.append(n)
-  result.append(collection)
-  return result
 
 
 def split_entropy(p_tx, beta, converge_dist, split_dist, alpha, \
@@ -57,4 +41,18 @@ def split_entropy(p_tx, beta, converge_dist, split_dist, alpha, \
     free_energy.append(fe)
     num_of_trials.append(trial_count)
   return traces, entropy, free_energy, num_of_trials
+
+
+def classify(traces):
+  count = len(traces)
+  items = sorted(zip(traces, range(count)))
+  result = []
+  current, collection = items[0][0], [items[0][1]]
+  for trace, n in items[1:]:
+    if current != trace:
+      result.append(collection)
+      current, collection = trace, []
+    collection.append(n)
+  result.append(collection)
+  return result
 

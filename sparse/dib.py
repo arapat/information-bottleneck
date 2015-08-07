@@ -7,7 +7,6 @@ from numpy import sum
 from numpy.random import uniform
 from scipy.sparse import csr_matrix
 
-
 def get_free_energy(p_tx, p_t, p_x, js_div, beta):
   """
   t: centroids
@@ -55,8 +54,6 @@ def get_membership(js_div, p_t, beta):
   p_t: array
   """
   p = p_t * np.exp(-beta * js_div)
-  if p.sum() == 0.0:
-    return p
   return p / p.sum()
 
 
@@ -86,7 +83,7 @@ def converge(p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur):
     # new p(t|x)
     if js_div:
       js_div.unpersist()
-    js_div = p_yx.map(lambda (a, v): (a, distance(v.toarray(), p_yt, p_x[a] > 0.0))).cache()
+    js_div = p_yx.map(lambda (a, v): (a, distance(v.toarray(), p_yt))).cache()
 
     new_p_tx = js_div.map(lambda (a, v): (a, get_membership(v, p_t, beta))) \
                      .sortByKey() \
