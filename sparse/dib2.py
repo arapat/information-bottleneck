@@ -71,7 +71,8 @@ def converge(p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur):
     # new p(t|x)
     if js_div:
       js_div.unpersist()
-    js_div = p_yx.map(lambda (a, v): (a, distance(v.toarray(), p_yt, p_x[a] > 0.0))).cache()
+    p_yt_sum = np.sum(p_yt, axis=1)
+    js_div = p_yx.map(lambda (a, v): (a, distance(v, p_yt, p_yt_sum))).cache()
 
     new_p_tx = js_div.map(lambda (a, v): (a, get_membership(v, p_t, beta))) \
                      .sortByKey() \

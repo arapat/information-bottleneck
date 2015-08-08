@@ -11,4 +11,4 @@ def ib_streaming(p_tx, beta, converge_dist, split_dist, alpha, \
     traces, entropies, free_energy, num_of_trials = split_entropy(p_tx, beta, 0.001, 0.1, 0.01, \
         bp_h.value, p_uh, p_uh_co_occur, trials = 20)
 
-    
+

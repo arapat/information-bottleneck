@@ -9,7 +9,7 @@ def hartigan_adjust(weight, vector, p_yt, c):
             centroid = (p_yt[i][1] - vector) / (p_yt[i][0] - weight)
         else:
             centroid = p_yt[i][1] / p_yt[i][0]
-        n_dist = distance(centroid, vector, True, True)
+        n_dist = distance(centroid, vector, is_vector = True)
         if n_dist < dist:
             dist = n_dist
             best = i
@@ -32,7 +32,7 @@ def hartigan_init(p_yx, p_x):
         return 1
 
     p1 = p_yx.takeSample(False, 1)[0][1].toarray()[0]
-    weights = p_yx.map(lambda (x, v): (x, distance(v.toarray()[0], p1, True, True))) \
+    weights = p_yx.map(lambda (x, v): (x, distance(v.toarray()[0], p1, is_vector=True))) \
                   .sortByKey().collect()[0]
     weights = np.array(weights)**2
     p2_idx = np.random.choice(weights.size, p = weights / weights.sum())

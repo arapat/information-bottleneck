@@ -1,23 +1,23 @@
 
 import numpy as np
+from scipy.sparse import csr_matrix
 
-def distance(p, q, valid = True, is_vector = False):
-  return jsd(p, q, valid, is_vector)
+def distance(p, q, qs = None, is_vector = False):
+  if not qs is None:
+    return csr_jsd(p, q, qs)
+  return jsd(p, q, is_vector)
 
 
 # Distance measurement
 
-def jsd(p, q, valid, is_vector):
+def jsd(p, q, is_vector):
   """
   p: a vector, or a matrix
   q: a vector, or a matrix
-  valid: valid[k] = +inf if the data point is invalid, 1.0 otherwise
   return the jsd between p and every vector in q
   """
   assert(type(p) is np.ndarray)
   assert(type(q) is np.ndarray)
-  if valid == False:
-    return np.array([np.inf] * q.shape[0])
 
   m = (p + q) / 2.0
   t1 = np.nan_to_num(p * log2(p / m))
@@ -29,24 +29,20 @@ def jsd(p, q, valid, is_vector):
   return 0.5 * (t1.sum(axis=1) + t2.sum(axis=1))
 
 
-# Unused
-
-def _csr_jsd(p, q):
+def csr_jsd(p, q, qs):
   """
   p, q: csr_matrix, shape = (1, d)
   return the JS divergence between p and q.
   """
-  _pq = np.intersect1d(p.nonzero()[1], q.nonzero()[1])
-  _p = p[0, _pq].data
-  _q = q[0, _pq].data
+  assert(type(p) is csr_matrix)
+  assert(type(q) is np.ndarray)
+  assert(len(q.shape) == 2 and q.shape[0] > 1)
+  _p = p.data
+  _q = q[:, p.nonzero()[1]] # might be zero
   m = (_p + _q) / 2.0
   plog2 = np.log2(_p / m)
   qlog2 = np.log2(_q / m)
-  psum = p.sum() - _p.sum()
-  qsum = q.sum() - _q.sum()
-  result = 0.5 * (_p.dot(plog2) + _q.dot(qlog2) + psum + qsum)
-  return result
-  """
-  return simple_jsd(p.toarray()[0], q.toarray()[0])
-  """
+  psum = np.sum(_p * plog2, axis=1)
+  qsum = qs - np.sum(_q, axis=1) + np.sum(np.nan_to_num(_q * qlog2), axis=1)
+  return 0.5 * (psum + qsum)
 
