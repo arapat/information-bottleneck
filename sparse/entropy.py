@@ -14,33 +14,24 @@ def compute_entropy(p):
   return entropy(np.array(stats) / total, base = 2.0)
 
 
-def hard_clustering(p_tx):
-  return np.argmax(p_tx, axis=1)
-
-
-def split_entropy(p_tx, beta, converge_dist, split_dist, alpha, \
+# TODO: collect information on free energy
+def split_entropy(init_beta, converge_dist, split_dist, numOfX, \
     p_x, p_yx, p_yx_co_occur, trials = 10):
-  n = p_tx.shape[0]
-
-  free_energy = []
-  num_of_trials = []
   entropy = []
-  traces = ['' for k in range(n)]
+  traces = ['' for k in range(numOfX)]
   loop = 0
   while loop < trials:
     loop = loop + 1
     log.info("Loop %d" % loop)
 
-    succeed, result = fixed_beta_split(p_tx, beta, converge_dist, split_dist, alpha, \
-        p_x, p_yx, p_yx_co_occur)
-    new_p_tx, fe, trial_count = result
-    for k, c in zip(range(n), hard_clustering(new_p_tx)):
+    init_p_tx, assignments = hartigan_twoCentroids(p_x, p_yx, numOfX)
+    beta, p_tx = search_beta(init_p_tx, init_beta, converge_dist, split_dist, p_x, p_yx, p_yx_co_occur)
+
+    for k, c in zip(range(numOfX), np.argmax(p_tx, axis=1)):
       traces[k] = traces[k] + "(%d)" % c
 
     entropy.append(compute_entropy(traces))
-    free_energy.append(fe)
-    num_of_trials.append(trial_count)
-  return traces, entropy, free_energy, num_of_trials
+  return traces, entropy
 
 
 def classify(traces):

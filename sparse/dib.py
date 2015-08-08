@@ -7,6 +7,7 @@ from numpy import sum
 from numpy.random import uniform
 from scipy.sparse import csr_matrix
 
+
 def get_free_energy(p_tx, p_t, p_x, js_div, beta):
   """
   t: centroids
@@ -32,21 +33,6 @@ def get_free_energy(p_tx, p_t, p_x, js_div, beta):
   return distortion - entropy / beta, distortion, entropy, entropy / beta
 
 
-def perturbate(p_tx, alpha):
-  """
-  perturb every leaf node to create two potential new centroids
-  p_tx : array
-  """
-  n_x, c = p_tx.shape
-  result = []
-  for k in range(c):
-    eps = alpha * uniform(-0.5, 0.5, n_x)
-    result.append(p_tx.T[k] * (0.5 + eps))
-    result.append(p_tx.T[k] * (0.5 - eps))
-  result = np.array(result)
-  return np.array(result.T)
-
-
 def get_membership(js_div, p_t, beta):
   """
   return the probability of a specific data point x belongs to each centroid
@@ -54,6 +40,8 @@ def get_membership(js_div, p_t, beta):
   p_t: array
   """
   p = p_t * np.exp(-beta * js_div)
+  if p.sum() == 0.0:
+    return p
   return p / p.sum()
 
 
@@ -83,7 +71,8 @@ def converge(p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur):
     # new p(t|x)
     if js_div:
       js_div.unpersist()
-    js_div = p_yx.map(lambda (a, v): (a, distance(v.toarray(), p_yt))).cache()
+    p_yt_sum = np.sum(p_yt, axis=1)
+    js_div = p_yx.map(lambda (a, v): (a, distance(v, p_yt, p_yt_sum))).cache()
 
     new_p_tx = js_div.map(lambda (a, v): (a, get_membership(v, p_t, beta))) \
                      .sortByKey() \
@@ -102,35 +91,15 @@ def converge(p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur):
   return p_yt, p_tx, free_energy, iterations
 
 
-def fixed_beta_split(p_tx, beta, converge_dist, split_dist, alpha, p_x, p_yx, p_yx_co_occur, \
-    maximum_trial = np.inf):
-  trial_count = 0
-  while trial_count < maximum_trial:
-    trial_count = trial_count + 1
-    log.info("trial %d, beta = %f" % (trial_count, beta))
-
-    # perturbate and converge
-    adjusted_p_tx = perturbate(p_tx, alpha)
-    timer = time()
-    p_yt, new_p_tx, free_energy, iterations = \
-        converge(adjusted_p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur)
-    log.info("Converge time %f seconds (%d iterations)" % (time() - timer, iterations))
-
-    js_distance = np.max(distance(p_yt[::2], p_yt[1::2]))
-    if js_distance > split_dist:
-      return (True, (new_p_tx, free_energy, trial_count))
-  return (False, None)
-
-
-def search_beta(p_tx, init_beta, converge_dist, split_dist, alpha, p_x, p_yx, p_yx_co_occur, \
-    maximum_trial = 5):
+def search_beta(p_tx, init_beta, converge_dist, split_dist, p_x, p_yx, p_yx_co_occur):
   left = init_beta
   right = np.inf
   beta = init_beta
   while left + 1.0 < right:
-    succeed, result = fixed_beta_split(p_tx, beta, converge_dist, split_dist, alpha, \
-        p_x, p_yx, p_yx_co_occur, maximum_trial)
-    if succeed:
+    p_yt, new_p_tx, free_energy, iterations = \
+        converge(p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur)
+    js_distance = np.max(distance(p_yt[::2], p_yt[1::2]))
+    if js_distance > split_dist:
       right = beta
     else:
       left = beta
@@ -139,5 +108,9 @@ def search_beta(p_tx, init_beta, converge_dist, split_dist, alpha, p_x, p_yx, p_
       beta = (left + right) / 2.0
     else:
       beta = beta * 2.0
-  return right
+
+  p_yt, new_p_tx, free_energy, iterations = \
+      converge(p_tx, beta, converge_dist, p_x, p_yx, p_yx_co_occur)
+  return right, new_p_tx
+
 
