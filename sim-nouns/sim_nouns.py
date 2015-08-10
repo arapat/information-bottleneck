@@ -32,5 +32,5 @@ p_vn = pairs.map(lambda (n, (v, c)): (bnouns.value[n], (bverbs.value[v], c))) \
 p_vn_co_occur = p_vn.map(lambda (n, v): (n, bp_n.value[n] * v)) \
                     .cache()
 
-traces, entropy = split_entropy(1.0, 0.001, 0.1, numOfN, bp_n.value, p_vn, p_vn_co_occur)
+traces, entropies = split_entropy(1.0, 0.001, 0.1, numOfN, bp_n.value, p_vn, p_vn_co_occur)
 
