@@ -33,7 +33,7 @@ def hartigan_init(p_yx, p_x):
 
     p1 = p_yx.takeSample(False, 1)[0][1].toarray()[0]
     weights = p_yx.map(lambda (x, v): (x, distance(v.toarray()[0], p1, is_vector=True))) \
-                  .sortByKey().collect()[0]
+                  .sortByKey().map(lambda p: p[1]).collect()
     weights = np.array(weights)**2
     p2_idx = np.random.choice(weights.size, p = weights / weights.sum())
     p2 = p_yx.zipWithIndex() \

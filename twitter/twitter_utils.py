@@ -1,11 +1,10 @@
 import json
 
-def json_validate(l):
+def try_load(l):
     try:
-        json.loads(l)
+        return json.loads(l)
     except:
-        return False
-    return True
+        return None
 
 def extract_tags(text):
     tokens = text.split()
