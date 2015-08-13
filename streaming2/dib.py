@@ -128,22 +128,14 @@ def search_beta(p_t, p_yt_co_occur, init_beta, converge_dist, split_dist, \
   return right, _p_t, _p_yt_co_occur
 
 
-def kmeans_plus(p_yx, p_x):
-    def partition(v, p1, p2):
-        d = distance(v.toarray()[0], np.array([p1, p2]))
-        assert(d.shape == (2,))
-        if d[0] < d[1]:
-            return 0
-        return 1
-
-    p1 = p_yx.takeSample(False, 1)[0][1].toarray()[0]
-    weights = p_yx.map(lambda (x, v): (x, distance(v.toarray()[0], p1, is_vector=True))) \
-                  .sortByKey().map(lambda p: p[1]).collect()
-    weights = np.array(weights)**2
-    p2_idx = np.random.choice(weights.size, p = weights / weights.sum())
-    p2 = p_yx.zipWithIndex() \
-             .filter(lambda p: p[1] == p2_idx) \
-             .first()[0][1].toarray()[0]
-
-    return 0.5 * np.array([p1, p2])
+def init_point(p_yx, c_x):
+  bp_x = sc.broadcast(c_x / c_x.sum())
+  avg = p_yx.map(lambda (a, b): csr_matrix(b.multiply(bp_x.value))) \
+            .sum().toarray()
+  bavg = sc.broadcast(avg.getA1())
+  weights = p_yx.map(lambda (a, b): (a, distance(b.toarray(), bavg.value))) \
+                .map(lambda (a, d): (a, d * np.log2(c_x[a]))) \
+                .sortByKey().map(lambda p: p[1]).collect()
+  weights = np.array(weights)
+  return np.random.choice(weights.size, p = weights / weights.sum())
 
