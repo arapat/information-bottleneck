@@ -45,7 +45,7 @@ def get_membership(js_div, p_t, beta):
   return p / p.sum()
 
 
-def converge(p_t, p_yt_co_occur, beta, converge_dist, \
+def converge(p_t, p_yt_co_occur, ratio_t, ratio_yt, beta, converge_dist, \
     p_x, p_yx, p_yx_co_occur):
   """
   Run the iterative information until p_tx converges
@@ -72,8 +72,6 @@ def converge(p_t, p_yt_co_occur, beta, converge_dist, \
     p_yt = _p_yt
 
     # p(t|x)
-    #if js_div:
-    #  js_div.unpersist()
     p_yt_sum = np.sum(p_yt, axis=1)
     js_div = p_yx.map(lambda (a, v): (a, distance(v, p_yt, p_yt_sum))) #.cache()
     p_tx = js_div.map(lambda (a, v): (a, get_membership(v, _p_t, beta))) \
@@ -81,61 +79,58 @@ def converge(p_t, p_yt_co_occur, beta, converge_dist, \
                      .map(lambda p: p[1]).collect()
     p_tx = np.array(p_tx)
 
-    _p_t = p_t + p_tx.T.dot(p_x)
+    _p_t = ratio_t * p_t + p_tx.T.dot(p_x)
     _p_t = _p_t / _p_t.sum()
 
     temp = p_yx_co_occur.map(lambda (a, v): \
         csr_matrix(np.outer(p_tx[a, :], v.toarray()))).sum()
-    _p_yt_co_occur = p_yt_co_occur + temp.toarray()
-
-    #max_diff = np.max(distance(p_tx, new_p_tx))
-    #if max_diff <= converge_dist:
-    #  break
-
-    #p_tx = new_p_tx
+    _p_yt_co_occur = ratio_yt * p_yt_co_occur + temp.toarray()
 
   #TODO: How to compute free energy?
   free_energy = 0.0 #get_free_energy(p_tx, p_t, p_x, js_div, beta)
-  js_div.unpersist()
+  # js_div.unpersist()
 
   return p_yt, _p_yt_co_occur, _p_t, free_energy, iterations
 
 
-def search_beta(p_t, p_yt_co_occur, init_beta, converge_dist, split_dist, \
+def search_beta(p_t, p_yt_co_occur, ratio_t, ratio_yt, init_beta, converge_dist, \
     p_x, p_yx, p_yx_co_occur):
-  left = init_beta
-  right = np.inf
   beta = init_beta
-  # while left + 1.0 < right:
-  p_yt, _p_yt_co_occur, _p_t, free_energy, iterations = \
-      converge(p_t, p_yt_co_occur, beta, converge_dist, \
+  _p_yt, _p_yt_co_occur, _p_t, free_energy, iterations = \
+      converge(p_t, p_yt_co_occur, ratio_t, ratio_yt, beta, converge_dist, \
       p_x, p_yx, p_yx_co_occur)
-  js_distance = np.max(distance(p_yt[::2], p_yt[1::2]))
-  log.info("left: %f, right: %f, dist: %f" % (left, right, js_distance))
-  #   if js_distance > split_dist:
-  #     right = beta
-  #   else:
-  #     left = beta
+  _movement = np.max(distance(p_yt, _p_yt))
+  _distance = np.max(distance(p_yt[::2], p_yt[1::2]))
+  log.info("move: %f, dist: %f" % (_movement, _distance))
+  return _p_t, _p_yt_co_occur, _movement, _distance
 
-  #   if not np.isinf(right):
-  #     beta = (left + right) / 2.0
-  #   else:
-  #     beta = beta * 2.0
-
-  # p_yt, _p_yt_co_occur, _p_t, free_energy, iterations = \
-  #     converge(p_t, p_yt_co_occur, beta, converge_dist, \
-  #     p_x, p_yx, p_yx_co_occur)
-  return right, _p_t, _p_yt_co_occur
-
-
-def init_point(p_yx, c_x):
-  bp_x = sc.broadcast(c_x / c_x.sum())
-  avg = p_yx.map(lambda (a, b): csr_matrix(b.multiply(bp_x.value))) \
-            .sum().toarray()
-  bavg = sc.broadcast(avg.getA1())
-  weights = p_yx.map(lambda (a, b): (a, distance(b.toarray(), bavg.value))) \
+def init_centroids(c_x, p_x, p_yx, p_yx_co_occur, beta):
+  # generate centroids
+  avg = p_yx.map(lambda (a, b): csr_matrix(p_x[a] * b)) \
+            .sum().toarray()[0]
+  bavg = sc.broadcast(avg)
+  weights = p_yx.map(lambda (a, b): (a, distance(b.toarray()[0], bavg.value))) \
                 .map(lambda (a, d): (a, d * np.log2(c_x[a]))) \
                 .sortByKey().map(lambda p: p[1]).collect()
   weights = np.array(weights)
-  return np.random.choice(weights.size, p = weights / weights.sum())
+  idx = np.random.choice(weights.size, p = weights / weights.sum())
+  vec = p_yx.filter(lambda (a, b): a == idx).first()[1].toarray()[0]
+  p_yt = np.array([vec, avg])
+
+  # compute assignments
+  p_t = np.array([0.5, 0.5])
+  p_yt_sum = np.sum(p_yt, axis=1)
+  js_div = p_yx.map(lambda (a, v): (a, distance(v, p_yt, p_yt_sum))) #.cache()
+  p_tx = js_div.map(lambda (a, v): (a, get_membership(v, p_t, beta))) \
+                   .sortByKey() \
+                   .map(lambda p: p[1]).collect()
+  p_tx = np.array(p_tx)
+
+  # return
+  p_yt_co_occur = p_yx_co_occur.map(lambda (a, v): \
+      csr_matrix(np.outer(p_tx[a, :], v.toarray()))).sum().toarray()
+  p_t = p_tx.T.dot(p_x)
+  p_t = p_t / p_t.sum()
+
+  return p_t, p_yt_co_occur, idx
 
